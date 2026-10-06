@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DocuMind AI — Intelligent Multi-Document QA, Quizzes & Flashcards</title>
+  <meta name="description" content="AI-Powered Document Intelligence with Grounded QA, Interactive Quizzes, 3D Study Flashcards, and Chapter Summaries.">
+  
+  <!-- Modern Google Fonts: Outfit (Titles) & Inter (Body) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Application CSS -->
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+  <div class="app-container">
+    
+    <!-- ==================== LEFT SIDEBAR ==================== -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="brand-badge">
+          <div class="brand-icon">✨</div>
+          <div>
+            <div class="brand-title">DocuMind AI</div>
+            <div style="font-size: 10px; color: var(--text-muted); font-weight: 600;">Document Intelligence</div>
+          </div>
+        </div>
+        <div class="status-badge" id="provider-status-badge">READY</div>
+      </div>
+
+      <div class="sidebar-actions">
+        <button class="btn-new-chat" id="btn-new-chat">
+          <span>+</span> New Chat
+        </button>
+      </div>
+
+      <!-- Sidebar Tabs: Library vs Chats -->
+      <div class="sidebar-nav-tabs">
+        <button class="sidebar-tab-btn active" data-sidebar-tab="docs">
+          <span>📚</span> Documents
+        </button>
+        <button class="sidebar-tab-btn" data-sidebar-tab="chats">
+          <span>💬</span> Chat History
+        </button>
+      </div>
+
+      <div class="sidebar-content">
+        <!-- Tab 1: Document Library -->
+        <div class="sidebar-pane active" id="sidebar-pane-docs">
+          <!-- Document Search -->
+          <div class="doc-search-box">
+            <span class="search-icon">🔍</span>
+            <input type="text" class="doc-search-input" id="doc-search-input" placeholder="Search uploaded documents...">
+          </div>
+
+          <!-- Upload Dropzone -->
+          <div class="upload-dropzone" id="upload-dropzone">
+            <div class="dropzone-icon">📥</div>
+            <div class="dropzone-text"><strong>Upload Books or Documents</strong></div>
+            <div class="dropzone-subtext">PDF, DOCX, TXT, MD (Drag & Drop or Click)</div>
+            <input type="file" id="file-upload-input" multiple accept=".pdf,.docx,.txt,.md" style="display:none;">
+          </div>
+
+          <!-- Document List Header -->
+          <div class="doc-list-header">
+            <label class="select-all-label">
+              <input type="checkbox" id="select-all-docs" checked>
+              <span>Select All</span>
+            </label>
+            <span id="doc-count-badge">Indexed Files</span>
+          </div>
+
+          <!-- Document List -->
+          <div class="doc-list" id="document-list-container">
+            <!-- Populated via JS -->
+          </div>
+        </div>
+
+        <!-- Tab 2: Conversations History -->
+        <div class="sidebar-pane" id="sidebar-pane-chats">
+          <div class="conv-list" id="conversations-list-container">
+            <!-- Populated via JS -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Sidebar Footer -->
+      <div class="sidebar-footer">
+        <button class="btn-sidebar-footer" onclick="App.renderDashboard()">
+          <span>📊</span> Dashboard
+        </button>
+        <button class="btn-sidebar-footer" onclick="App.openSettingsModal()">
+          <span>⚙️</span> Settings
+        </button>
+      </div>
+    </aside>
+
+    <!-- ==================== MAIN CHAT AREA ==================== -->
+    <main class="main-chat-area">
+      <!-- Top Navigation Header -->
+      <header class="main-header">
+        <div class="header-left">
+          <button class="btn-toggle-panel" id="btn-toggle-sidebar" title="Toggle Sidebar">
+            ☰
+          </button>
+          <div class="conv-header-title" id="header-conv-title">
+            New Conversation
+          </div>
+          <div class="doc-selection-pill" id="header-doc-selection-pill">
+            Searching All Documents
+          </div>
+        </div>
+
+        <div class="header-right">
+          <!-- Clear Chat Button -->
+          <button class="btn-icon-header" id="btn-clear-chat" title="Clear Conversation">
+            🗑
+          </button>
+
+          <!-- Theme Toggle Button -->
+          <button class="btn-icon-header" id="btn-theme-toggle" title="Toggle Theme" onclick="App.toggleTheme()">
+            <span id="theme-icon">☀️</span>
+          </button>
+
+          <!-- Toggle Right Inspector -->
+          <button class="btn-toggle-panel" id="btn-toggle-inspector" title="Toggle Tools & Inspector">
+            📑
+          </button>
+        </div>
+      </header>
+
+      <!-- Prominent Style Quick Pills Selector -->
+      <div class="style-bar-container">
+        <div class="style-bar-label"><span>✨</span> Style:</div>
+        <div class="style-pills-row" id="style-pills-container">
+          <button class="style-pill-btn active" data-style="Detailed" onclick="App.setStyle('Detailed')">📝 Detailed</button>
+          <button class="style-pill-btn" data-style="Concise" onclick="App.setStyle('Concise')">⚡ Concise</button>
+          <button class="style-pill-btn" data-style="Bullet Points" onclick="App.setStyle('Bullet Points')">📋 Bullet Points</button>
+          <button class="style-pill-btn" data-style="Summary" onclick="App.setStyle('Summary')">📌 Summary</button>
+          <button class="style-pill-btn" data-style="Simple Explanation" onclick="App.setStyle('Simple Explanation')">💡 Simple</button>
+          <button class="style-pill-btn" data-style="Exam Answer" onclick="App.setStyle('Exam Answer')">🎓 Exam Answer</button>
+          <button class="style-pill-btn" data-style="Step-by-Step" onclick="App.setStyle('Step-by-Step')">🔢 Step-by-Step</button>
+          <button class="style-pill-btn" data-style="Key Points" onclick="App.setStyle('Key Points')">🔑 Key Points</button>
+        </div>
+      </div>
+
+      <!-- Chat Body & Messages -->
+      <section class="chat-body" id="chat-body">
+        
+        <!-- Dashboard / Welcome View -->
+        <div class="dashboard-empty-state" id="dashboard-view">
+          <div class="hero-icon">📖</div>
+          <div class="hero-title">AI Document Intelligence Assistant</div>
+          <p class="hero-subtitle">
+            Upload textbooks, lecture notes, or research papers and explore them interactively. 
+            DocuMind AI provides grounded answers with page citations, generates customized quizzes, and creates study flashcards.
+          </p>
+
+          <!-- Stats Grid -->
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-val" id="stat-docs">0</div>
+              <div class="stat-lbl">Documents Uploaded</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-val" id="stat-pages">0</div>
+              <div class="stat-lbl">Pages Processed</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-val" id="stat-chunks">0</div>
+              <div class="stat-lbl">Semantic Chunks</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-val" id="stat-questions">0</div>
+              <div class="stat-lbl">Questions Asked</div>
+            </div>
+          </div>
+
+          <!-- Quick Feature Launchers -->
+          <div class="dashboard-quick-actions">
+            <div class="quick-action-card" onclick="App.openInspectorTab('quiz')">
+              <div class="quick-action-icon">🎯</div>
+              <div>
+                <div class="quick-action-title">Interactive Quiz</div>
+                <div class="quick-action-desc">Test your understanding with instant feedback</div>
+              </div>
+            </div>
+            <div class="quick-action-card" onclick="App.openInspectorTab('flashcards')">
+              <div class="quick-action-icon">🎴</div>
+              <div>
+                <div class="quick-action-title">Study Flashcards</div>
+                <div class="quick-action-desc">Master key terms with 3D flip cards</div>
+              </div>
+            </div>
+            <div class="quick-action-card" onclick="App.openInspectorTab('summarize')">
+              <div class="quick-action-icon">📝</div>
+              <div>
+                <div class="quick-action-title">Book Summarizer</div>
+                <div class="quick-action-desc">Chapter-by-chapter and key point syntheses</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Suggested Questions Section -->
+          <div class="suggested-section">
+            <div class="suggested-title">Suggested Inquiries From Your Content</div>
+            <div class="suggested-chips" id="suggested-chips-container">
+              <!-- Populated via JS -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Chat Messages Container -->
+        <div id="chat-messages-container"></div>
+      </section>
+
+      <!-- Bottom Chat Input Bar -->
+      <footer class="chat-input-wrapper">
+        <div class="input-container">
+          <textarea 
+            class="input-textarea" 
+            id="chat-input-textarea" 
+            placeholder="Ask a question about your uploaded documents..." 
+            rows="1"></textarea>
+
+          <div class="input-toolbar">
+            <div class="input-tools-left">
+              <button class="btn-tool" id="btn-voice-input" title="Voice Input (Speech-to-Text)">
+                🎤
+              </button>
+              <button class="btn-tool" id="btn-quick-attach" title="Attach Document">
+                📎
+              </button>
+            </div>
+
+            <button class="btn-send" id="btn-send-message" title="Send Question">
+              ➤
+            </button>
+          </div>
+        </div>
+        <div class="input-hint">
+          Enter to send • Shift+Enter for newline • Strictly grounded in uploaded content
+        </div>
+      </footer>
+    </main>
+
+    <!-- ==================== RIGHT INSPECTOR PANEL ==================== -->
+    <aside class="inspector-panel" id="inspector-panel">
+      <!-- Inspector Tabs -->
+      <div class="inspector-tabs">
+        <button class="inspector-tab-btn active" data-inspector-tab="sources">
+          <span>🔍</span> Sources
+        </button>
+        <button class="inspector-tab-btn" data-inspector-tab="quiz">
+          <span>🎯</span> Quiz
+        </button>
+        <button class="inspector-tab-btn" data-inspector-tab="flashcards">
+          <span>🎴</span> Flashcards
+        </button>
+        <button class="inspector-tab-btn" data-inspector-tab="summarize">
+          <span>📝</span> Summarize
+        </button>
+        <button class="inspector-tab-btn" data-inspector-tab="pdf">
+          <span>📄</span> Viewer
+        </button>
+      </div>
+
+      <div class="inspector-content">
+        <!-- Tab 1: Sources & Citations -->
+        <div class="inspector-pane active" id="inspector-pane-sources">
+          <div id="inspector-sources-container">
+            <div style="text-align:center; padding:35px 12px; color:var(--text-muted); font-size:12px;">
+              Ask a question to inspect retrieved grounded passages and relevance scores here.
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 2: Interactive Quiz Generator -->
+        <div class="inspector-pane" id="inspector-pane-quiz">
+          <div class="quiz-container">
+            <div class="form-group">
+              <label class="form-label">Target Document</label>
+              <select class="form-select" id="quiz-doc-select" onchange="App.onQuizDocChange()">
+                <!-- Populated via JS -->
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Chapter Scope</label>
+              <select class="form-select" id="quiz-chapter-select">
+                <option value="All Chapters">Entire Document</option>
+              </select>
+            </div>
+
+            <div style="display:flex; gap:10px;">
+              <div class="form-group" style="flex:1;">
+                <label class="form-label">Questions</label>
+                <select class="form-select" id="quiz-count-select">
+                  <option value="3">3 Questions</option>
+                  <option value="5" selected>5 Questions</option>
+                  <option value="8">8 Questions</option>
+                </select>
+              </div>
+              <div class="form-group" style="flex:1;">
+                <label class="form-label">Difficulty</label>
+                <select class="form-select" id="quiz-diff-select">
+                  <option value="Easy">Easy</option>
+                  <option value="Medium" selected>Medium</option>
+                  <option value="Hard">Hard</option>
+                </select>
+              </div>
+            </div>
+
+            <button class="btn-action-primary" onclick="App.handleGenerateQuiz()">
+              <span>🎯</span> Generate Interactive Quiz
+            </button>
+
+            <!-- Quiz Display Area -->
+            <div id="quiz-display-area" style="margin-top:6px;">
+              <div style="text-align:center; padding:25px 10px; color:var(--text-muted); font-size:12px;">
+                Select a document and click "Generate Interactive Quiz" to test your knowledge!
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 3: Study Flashcards (3D Flip Animation) -->
+        <div class="inspector-pane" id="inspector-pane-flashcards">
+          <div class="flashcards-container">
+            <div class="form-group">
+              <label class="form-label">Target Document</label>
+              <select class="form-select" id="flashcard-doc-select" onchange="App.onFlashcardDocChange()">
+                <!-- Populated via JS -->
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Chapter Scope</label>
+              <select class="form-select" id="flashcard-chapter-select">
+                <option value="All Chapters">Entire Document</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Number of Cards</label>
+              <select class="form-select" id="flashcard-count-select">
+                <option value="5">5 Cards</option>
+                <option value="8" selected>8 Cards</option>
+                <option value="12">12 Cards</option>
+              </select>
+            </div>
+
+            <button class="btn-action-primary" onclick="App.handleGenerateFlashcards()">
+              <span>🎴</span> Generate Flashcards
+            </button>
+
+            <!-- Flashcard Deck Area -->
+            <div id="flashcard-display-area" style="margin-top:6px;">
+              <div style="text-align:center; padding:25px 10px; color:var(--text-muted); font-size:12px;">
+                Generate flashcards to review high-yield concepts with interactive 3D flip cards.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 4: Book / Document Summarizer -->
+        <div class="inspector-pane" id="inspector-pane-summarize">
+          <div class="summarizer-form" style="display:flex; flex-direction:column; gap:12px;">
+            <div class="form-group">
+              <label class="form-label">Target Document</label>
+              <select class="form-select" id="summarizer-doc-select" onchange="App.onSummarizerDocChange()">
+                <!-- Populated via JS -->
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Scope</label>
+              <select class="form-select" id="summarizer-chapter-select">
+                <option value="All Chapters">Entire Document</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Summary Format</label>
+              <select class="form-select" id="summarizer-type-select">
+                <option value="short">Short Executive Summary</option>
+                <option value="detailed">Detailed Comprehensive Summary</option>
+                <option value="key_points">Core Key Points & Takeaways</option>
+                <option value="concepts">Important Conceptual Frameworks</option>
+                <option value="definitions">Important Definitions & Terms</option>
+                <option value="chapter_wise">Chapter-by-Chapter Breakdown</option>
+              </select>
+            </div>
+
+            <button class="btn-action-primary" onclick="App.handleGenerateSummary()">
+              <span>📝</span> Generate Summary
+            </button>
+
+            <div class="summary-output-card" id="summarizer-output-card" style="background:var(--bg-surface); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:14px; line-height:1.6; font-size:13px; max-height:360px; overflow-y:auto;">
+              <div style="color:var(--text-muted); font-size:12px; text-align:center; padding: 20px 0;">
+                Select format and click "Generate Summary" to view structured document summaries.
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 5: PDF / Document Viewer -->
+        <div class="inspector-pane" id="inspector-pane-pdf">
+          <div class="pdf-viewer-container">
+            <div class="pdf-toolbar">
+              <div style="font-weight:700; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:140px;" id="pdf-doc-title">
+                Document Viewer
+              </div>
+              <div style="display:flex; align-items:center; gap:6px;">
+                <button class="btn-icon-xs" onclick="PDFViewer.prevPage()" title="Previous Page">◀</button>
+                <input type="number" id="pdf-page-input" value="1" min="1" style="width:42px; background:var(--bg-primary); border:1px solid var(--border-color); color:var(--text-primary); text-align:center; border-radius:4px; font-size:11px;" onchange="PDFViewer.jumpToPage(this.value)">
+                <span style="font-size:11px; color:var(--text-muted);">/ <span id="pdf-total-pages">1</span></span>
+                <button class="btn-icon-xs" onclick="PDFViewer.nextPage()" title="Next Page">▶</button>
+                <button class="btn-icon-xs" onclick="PDFViewer.zoomOut()" title="Zoom Out">−</button>
+                <span style="font-size:10px; color:var(--text-muted);" id="pdf-zoom-val">100%</span>
+                <button class="btn-icon-xs" onclick="PDFViewer.zoomIn()" title="Zoom In">+</button>
+              </div>
+            </div>
+
+            <div class="pdf-page-display" id="pdf-display-container">
+              <div style="padding:20px; text-align:center; color:var(--text-muted); font-size:12px;">
+                Click any source citation chip `[Doc.pdf (p.4)]` in chat to inspect that exact page here.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+  </div>
+
+  <!-- ==================== UPLOAD PROGRESS MODAL ==================== -->
+  <div class="modal-overlay" id="upload-progress-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">Processing & Indexing Documents</div>
+      </div>
+      <div class="modal-body">
+        <div id="upload-modal-files-list" style="font-size:12px; color:var(--text-muted);"></div>
+
+        <div class="upload-stage-tracker">
+          <div class="stage-step active" id="upload-step-1">
+            <div class="stage-icon">1</div>
+            <span>Uploading document files</span>
+          </div>
+          <div class="stage-step" id="upload-step-2">
+            <div class="stage-icon">2</div>
+            <span>Extracting high-resolution text and pages</span>
+          </div>
+          <div class="stage-step" id="upload-step-3">
+            <div class="stage-icon">3</div>
+            <span>Detecting chapters, sections, and table of contents</span>
+          </div>
+          <div class="stage-step" id="upload-step-4">
+            <div class="stage-icon">4</div>
+            <span>Splitting chunks with contextual overlaps</span>
+          </div>
+          <div class="stage-step" id="upload-step-5">
+            <div class="stage-icon">5</div>
+            <span>Generating high-dimensional semantic embeddings</span>
+          </div>
+          <div class="stage-step" id="upload-step-6">
+            <div class="stage-icon">6</div>
+            <span>Indexing in vector database (ChromaDB)</span>
+          </div>
+        </div>
+
+        <div id="upload-modal-status-text" style="font-size:13px; font-weight:700; color:var(--accent-primary); margin-top:10px; text-align:center;">
+          Initializing document pipeline...
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== SETTINGS MODAL ==================== -->
+  <div class="modal-overlay" id="settings-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">⚙️ AI Model & API Configuration</div>
+        <button class="btn-icon-xs" onclick="App.closeSettingsModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">Active AI Provider</label>
+          <select class="form-select" id="settings-provider-select">
+            <option value="gemini">Google Gemini (Recommended - Fast & Accurate)</option>
+            <option value="openai">OpenAI (GPT-4o / GPT-4o-mini)</option>
+            <option value="groq">Groq (Llama 3.3 70B Ultra-fast)</option>
+            <option value="local">Local Grounded Extractive Mode (Offline)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Gemini API Key</label>
+          <input type="password" class="form-input" id="settings-gemini-key" placeholder="Enter GEMINI_API_KEY">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">OpenAI API Key</label>
+          <input type="password" class="form-input" id="settings-openai-key" placeholder="Enter OPENAI_API_KEY">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Groq API Key</label>
+          <input type="password" class="form-input" id="settings-groq-key" placeholder="Enter GROQ_API_KEY">
+        </div>
+
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-top:8px;">
+          <button class="btn-secondary" style="font-size:12px;" onclick="App.testCurrentProvider()">
+            🧪 Test Connection
+          </button>
+          <span id="settings-test-result" style="font-size:11px;"></span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="App.closeSettingsModal()">Cancel</button>
+        <button class="btn-primary" onclick="App.saveSettings()">Save Configuration</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Application Scripts -->
+  <script src="/static/js/api.js"></script>
+  <script src="/static/js/chat.js"></script>
+  <script src="/static/js/pdf_viewer.js"></script>
+  <script src="/static/js/app.js"></script>
+
+</body>
+</html>
