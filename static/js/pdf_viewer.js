@@ -26,6 +26,20 @@ const PDFViewer = {
     this.renderCurrentPage();
   },
 
+  openDocumentByNameAndPage(filename, pageNum = 1) {
+    if (!filename) return;
+    const cleanTarget = filename.trim().toLowerCase();
+    const doc = (App.state.documents || []).find(d => 
+      d.filename.toLowerCase() === cleanTarget || 
+      d.filename.toLowerCase().includes(cleanTarget) ||
+      cleanTarget.includes(d.filename.toLowerCase())
+    ) || (App.state.documents && App.state.documents[0]);
+
+    if (doc) {
+      this.openDocumentPage(doc.id, doc.filename, pageNum, doc.page_count);
+    }
+  },
+
   renderCurrentPage() {
     if (!this.currentDocId) return;
 

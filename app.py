@@ -39,6 +39,7 @@ from services.rag_engine import rag_engine
 from services.summarizer import summarizer_service
 from services.quiz_service import quiz_service
 from services.flashcard_service import flashcard_service
+from services.concept_map_service import concept_map_service
 
 # Initialize Database
 init_db()
@@ -75,6 +76,16 @@ class AskRequest(BaseModel):
 class SummarizeRequest(BaseModel):
     summary_type: str = "short"  # short, detailed, key_points, concepts, definitions, chapter_wise
     chapter: Optional[str] = None
+
+class SmartSummarizeRequest(BaseModel):
+    doc_ids: List[str]
+    mode: str = "detailed"       # short, detailed, bullet_points, exam_notes
+    length: str = "detailed"     # 5_points, 10_points, detailed
+    chapter: Optional[str] = None
+
+class ConceptMapRequest(BaseModel):
+    doc_ids: List[str]
+    topic: Optional[str] = None
 
 class QuizRequest(BaseModel):
     chapter: Optional[str] = None
@@ -362,7 +373,7 @@ def ask_question_endpoint(req: AskRequest):
 
 @app.post("/api/documents/{doc_id}/summarize")
 def summarize_document_endpoint(doc_id: str, req: SummarizeRequest):
-    """Summarize entire book or a selected chapter."""
+    """Summarize entire book or a selected chapter (legacy endpoint preserved)."""
     doc = get_document(doc_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -372,6 +383,30 @@ def summarize_document_endpoint(doc_id: str, req: SummarizeRequest):
         filename=doc["filename"],
         summary_type=req.summary_type,
         chapter=req.chapter
+    )
+    return result
+
+@app.post("/api/summarizer/smart")
+def smart_summarize_endpoint(req: SmartSummarizeRequest):
+    """AI-Powered Smart Summarizer supporting single & multi-document synthesis and 4 modes."""
+    if not req.doc_ids:
+        raise HTTPException(status_code=400, detail="Please select at least one document.")
+    result = summarizer_service.generate_smart_summary(
+        doc_ids=req.doc_ids,
+        mode=req.mode,
+        length=req.length,
+        chapter=req.chapter
+    )
+    return result
+
+@app.post("/api/concept-map/generate")
+def generate_concept_map_endpoint(req: ConceptMapRequest):
+    """Generate an interconnected visual concept map dynamically from document content."""
+    if not req.doc_ids:
+        raise HTTPException(status_code=400, detail="Please select at least one document.")
+    result = concept_map_service.generate_concept_map(
+        doc_ids=req.doc_ids,
+        focus_topic=req.topic
     )
     return result
 

@@ -26,6 +26,19 @@ const App = {
       currentIndex: 0,
       isFlipped: false,
       mastered: new Set()
+    },
+
+    // Concept Map State
+    currentConceptMap: {
+      data: null,
+      zoom: 1.0,
+      selectedNodeId: null
+    },
+
+    // Smart Summary State
+    currentSmartSummary: {
+      text: '',
+      docNames: []
     }
   },
 
@@ -286,13 +299,12 @@ const App = {
   },
 
   updateFeatureDocSelects() {
-    const selects = [
-      document.getElementById('summarizer-doc-select'),
+    const singleSelects = [
       document.getElementById('quiz-doc-select'),
       document.getElementById('flashcard-doc-select')
     ];
 
-    selects.forEach(select => {
+    singleSelects.forEach(select => {
       if (!select) return;
       if (this.state.documents.length === 0) {
         select.innerHTML = '<option value="">No documents uploaded</option>';
@@ -303,13 +315,43 @@ const App = {
       `).join('');
     });
 
+    // Multi-doc capable selects: Concept Map and Smart Summarizer
+    const multiSelects = [
+      document.getElementById('concept-map-doc-select'),
+      document.getElementById('summarizer-doc-select')
+    ];
+
+    multiSelects.forEach(select => {
+      if (!select) return;
+      if (this.state.documents.length === 0) {
+        select.innerHTML = '<option value="">No documents uploaded</option>';
+        return;
+      }
+      let optionsHtml = '';
+      if (this.state.documents.length > 1) {
+        optionsHtml += `<option value="__all__">📚 All Selected Documents (${this.state.selectedDocIds.size || this.state.documents.length})</option>`;
+      }
+      optionsHtml += this.state.documents.map(d => `
+        <option value="${d.id}">${d.filename}</option>
+      `).join('');
+      select.innerHTML = optionsHtml;
+    });
+
     this.onSummarizerDocChange();
     this.onQuizDocChange();
     this.onFlashcardDocChange();
   },
 
   onSummarizerDocChange() {
-    this._populateChapterSelect('summarizer-doc-select', 'summarizer-chapter-select');
+    const docSelect = document.getElementById('summarizer-doc-select');
+    const chGroup = document.getElementById('summarizer-chapter-group');
+    if (!docSelect) return;
+    if (docSelect.value === '__all__') {
+      if (chGroup) chGroup.style.display = 'none';
+    } else {
+      if (chGroup) chGroup.style.display = 'block';
+      this._populateChapterSelect('summarizer-doc-select', 'summarizer-chapter-select');
+    }
   },
 
   onQuizDocChange() {
@@ -980,54 +1022,491 @@ const App = {
     `).join('');
   },
 
-  // ----------------- Inspector: Summarizer -----------------
-  async handleGenerateSummary() {
+  // ----------------- Inspector: Smart Summarizer -----------------
+  async handleGenerateSmartSummary() {
     const docSelect = document.getElementById('summarizer-doc-select');
     const chapterSelect = document.getElementById('summarizer-chapter-select');
-    const typeSelect = document.getElementById('summarizer-type-select');
+    const modeSelect = document.getElementById('summarizer-mode-select');
+    const lengthSelect = document.getElementById('summarizer-length-select');
     const outputCard = document.getElementById('summarizer-output-card');
 
     if (!docSelect || !docSelect.value) {
-      alert('Please upload and select a document first.');
+      alert('Please upload and select at least one document first.');
       return;
     }
 
-    const docId = docSelect.value;
-    const chapter = chapterSelect.value;
-    const summaryType = typeSelect.value;
+    let docIds = [];
+    if (docSelect.value === '__all__') {
+      docIds = Array.from(this.state.selectedDocIds);
+      if (docIds.length === 0) {
+        docIds = this.state.documents.map(d => d.id);
+      }
+    } else {
+      docIds = [docSelect.value];
+    }
+
+    const chapter = (chapterSelect && docSelect.value !== '__all__') ? chapterSelect.value : null;
+    const mode = modeSelect ? modeSelect.value : 'detailed';
+    const length = lengthSelect ? lengthSelect.value : 'detailed';
 
     if (outputCard) {
       outputCard.innerHTML = `
-        <div style="display:flex; align-items:center; gap:10px; color:var(--text-muted);">
-          <div class="stage-icon spinner" style="width:20px; height:20px; border-color:var(--accent-primary);"></div>
-          <span>Synthesizing structured document summary...</span>
+        <div style="display:flex; align-items:center; gap:10px; color:var(--text-muted); padding:25px 0; justify-content:center;">
+          <div class="stage-icon spinner" style="width:22px; height:22px; border-color:var(--accent-primary);"></div>
+          <span>Synthesizing smart ${mode.replace('_', ' ')} summary from documents...</span>
         </div>
       `;
     }
 
     try {
-      const res = await API.summarizeDocument(docId, {
-        summary_type: summaryType,
+      const res = await API.generateSmartSummary({
+        doc_ids: docIds,
+        mode: mode,
+        length: length,
         chapter: chapter
       });
 
+      this.state.currentSmartSummary = {
+        text: res.summary || '',
+        docNames: res.doc_names || []
+      };
+
       if (outputCard) {
+        const modeLabel = mode.replace('_', ' ').toUpperCase();
         outputCard.innerHTML = `
-          <div style="display:flex; justify-content:space-between; margin-bottom:12px;">
-            <span style="font-weight:700; font-size:12px; color:var(--accent-primary);">
-              ✨ ${summaryType.toUpperCase()} SUMMARY
-            </span>
-            <button class="btn-icon-xs" title="Copy" onclick="Chat.copyToClipboard(\`${this.escapeBackticks(res.summary)}\`, this)">📋 Copy</button>
+          <div class="summary-actions-bar">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span class="node-category-badge root">✨ ${modeLabel}</span>
+              <span style="font-size:11px; color:var(--text-muted); font-weight:600;">${res.chunks_analyzed || 0} excerpts analyzed</span>
+            </div>
+            <div style="display:flex; gap:6px;">
+              <button class="btn-icon-xs" title="Copy Summary" onclick="Chat.copyToClipboard(\`${this.escapeBackticks(res.summary)}\`, this)">📋 Copy</button>
+              <button class="btn-icon-xs" title="Download Summary as Markdown" onclick="App.downloadSmartSummary()">⬇️ Download</button>
+            </div>
           </div>
-          <div class="markdown-body">
+          <div class="markdown-body" style="font-size:13px; line-height:1.65;">
             ${Chat.renderMarkdown(res.summary)}
           </div>
         `;
       }
     } catch (err) {
       if (outputCard) {
-        outputCard.innerHTML = `<span style="color:var(--danger)">Error: ${err.message}</span>`;
+        outputCard.innerHTML = `<div style="color:var(--danger); padding:10px; font-size:12px;">Error generating summary: ${err.message}</div>`;
       }
+    }
+  },
+
+  handleGenerateSummary() {
+    return this.handleGenerateSmartSummary();
+  },
+
+  downloadSmartSummary() {
+    const summary = this.state.currentSmartSummary.text;
+    if (!summary) return;
+    const blob = new Blob([summary], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `DocuMind_Summary_${new Date().toISOString().slice(0, 10)}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  },
+
+  // =========================================================
+  // AI CONCEPT MAP GENERATOR
+  // =========================================================
+  async handleGenerateConceptMap() {
+    const docSelect = document.getElementById('concept-map-doc-select');
+    const topicInput = document.getElementById('concept-map-topic-input');
+    const viewport = document.getElementById('concept-map-viewport');
+    const toolbar = document.getElementById('concept-map-toolbar');
+    const detailsBox = document.getElementById('concept-node-details');
+
+    if (!docSelect || !docSelect.value) {
+      alert('Please upload and select at least one document first.');
+      return;
+    }
+
+    let docIds = [];
+    if (docSelect.value === '__all__') {
+      docIds = Array.from(this.state.selectedDocIds);
+      if (docIds.length === 0) {
+        docIds = this.state.documents.map(d => d.id);
+      }
+    } else {
+      docIds = [docSelect.value];
+    }
+
+    const topic = topicInput ? topicInput.value.trim() : '';
+
+    if (viewport) {
+      viewport.innerHTML = `
+        <div style="display:flex; flex-direction:column; align-items:center; gap:10px; color:var(--text-muted); padding:30px;">
+          <div class="stage-icon spinner" style="width:26px; height:26px; border-color:var(--accent-primary);"></div>
+          <span style="font-size:12px; font-weight:600;">Extracting concepts and relationships from document content...</span>
+        </div>
+      `;
+    }
+    if (detailsBox) detailsBox.style.display = 'none';
+
+    try {
+      const res = await API.generateConceptMap(docIds, topic);
+      if (!res.nodes || res.nodes.length === 0) {
+        if (viewport) {
+          viewport.innerHTML = `<div style="color:var(--danger); font-size:12px; padding:20px;">Could not extract concept map from the selected content.</div>`;
+        }
+        return;
+      }
+
+      this.state.currentConceptMap = {
+        data: res,
+        zoom: 1.0,
+        selectedNodeId: null
+      };
+
+      if (toolbar) toolbar.style.display = 'flex';
+      const badge = document.getElementById('concept-map-title-badge');
+      if (badge) badge.innerText = `🧠 ${res.main_topic || 'Concept Map'}`;
+
+      this.renderConceptMap(res);
+
+    } catch (err) {
+      if (viewport) {
+        viewport.innerHTML = `<div style="color:var(--danger); font-size:12px; padding:20px;">Error generating concept map: ${err.message}</div>`;
+      }
+    }
+  },
+
+  renderConceptMap(data) {
+    const viewport = document.getElementById('concept-map-viewport');
+    if (!viewport) return;
+
+    const nodes = data.nodes || [];
+    const edges = data.edges || [];
+
+    if (nodes.length === 0) return;
+
+    const width = 680;
+    const height = 440;
+    const centerX = width / 2;
+    const centerY = height / 2;
+
+    const rootNode = nodes.find(n => n.category === 'root') || nodes[0];
+    const subtopics = nodes.filter(n => n.id !== rootNode.id && n.category === 'subtopic');
+    const otherNodes = nodes.filter(n => n.id !== rootNode.id && n.category !== 'subtopic');
+
+    const positions = {};
+    positions[rootNode.id] = { x: centerX, y: centerY };
+
+    const subtopicRadius = 130;
+    subtopics.forEach((st, idx) => {
+      const angle = (idx / Math.max(subtopics.length, 1)) * 2 * Math.PI - (Math.PI / 2);
+      positions[st.id] = {
+        x: centerX + subtopicRadius * Math.cos(angle),
+        y: centerY + subtopicRadius * Math.sin(angle)
+      };
+    });
+
+    const outerRadius = 195;
+    otherNodes.forEach((node, idx) => {
+      const edgeTo = edges.find(e => e.target === node.id);
+      const parentPos = edgeTo && positions[edgeTo.source] ? positions[edgeTo.source] : null;
+
+      if (parentPos && parentPos !== positions[rootNode.id]) {
+        const dx = parentPos.x - centerX;
+        const dy = parentPos.y - centerY;
+        const angle = Math.atan2(dy, dx) + ((idx % 3) - 1) * 0.45;
+        positions[node.id] = {
+          x: Math.min(width - 55, Math.max(55, centerX + outerRadius * Math.cos(angle))),
+          y: Math.min(height - 40, Math.max(40, centerY + outerRadius * Math.sin(angle)))
+        };
+      } else {
+        const angle = (idx / Math.max(otherNodes.length, 1)) * 2 * Math.PI;
+        positions[node.id] = {
+          x: Math.min(width - 55, Math.max(55, centerX + outerRadius * Math.cos(angle))),
+          y: Math.min(height - 40, Math.max(40, centerY + outerRadius * Math.sin(angle)))
+        };
+      }
+    });
+
+    let svgContent = `
+      <svg class="concept-map-svg" id="concept-map-svg-el" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="rootGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#9333ea" />
+            <stop offset="100%" stop-color="#ec4899" />
+          </linearGradient>
+          <linearGradient id="subtopicGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#2563eb" />
+            <stop offset="100%" stop-color="#3b82f6" />
+          </linearGradient>
+          <linearGradient id="conceptGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#059669" />
+            <stop offset="100%" stop-color="#10b981" />
+          </linearGradient>
+          <linearGradient id="methodGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#d97706" />
+            <stop offset="100%" stop-color="#f59e0b" />
+          </linearGradient>
+          <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+            <feGaussianBlur stdDeviation="3" result="blur" />
+            <feComposite in="SourceGraphic" in2="blur" operator="over" />
+          </filter>
+        </defs>
+
+        <g id="concept-map-edges">
+    `;
+
+    edges.forEach(edge => {
+      const src = positions[edge.source];
+      const tgt = positions[edge.target];
+      if (!src || !tgt) return;
+
+      const midX = (src.x + tgt.x) / 2;
+      const midY = (src.y + tgt.y) / 2;
+      const qx = midX + (src.y - tgt.y) * 0.12;
+      const qy = midY + (tgt.x - src.x) * 0.12;
+
+      svgContent += `
+        <g class="concept-edge-group">
+          <path d="M ${src.x} ${src.y} Q ${qx} ${qy} ${tgt.x} ${tgt.y}" class="concept-edge" />
+          ${edge.label ? `
+            <text x="${qx}" y="${qy}" class="concept-edge-label">${edge.label}</text>
+          ` : ''}
+        </g>
+      `;
+    });
+
+    svgContent += `</g><g id="concept-map-nodes">`;
+
+    nodes.forEach(node => {
+      const pos = positions[node.id] || { x: centerX, y: centerY };
+      const isRoot = node.id === rootNode.id;
+      const cat = node.category || 'concept';
+
+      let fill = 'url(#conceptGrad)';
+      let rx = 16;
+      let boxW = Math.max(90, Math.min(150, node.label.length * 8.5 + 24));
+      let boxH = isRoot ? 40 : 32;
+
+      if (isRoot) {
+        fill = 'url(#rootGrad)';
+        boxW = Math.max(120, Math.min(180, node.label.length * 9 + 30));
+      } else if (cat === 'subtopic') {
+        fill = 'url(#subtopicGrad)';
+      } else if (cat === 'method') {
+        fill = 'url(#methodGrad)';
+      }
+
+      svgContent += `
+        <g class="concept-node-group" id="svg-node-${node.id}" onclick="App.selectConceptNode('${node.id}')" transform="translate(${pos.x}, ${pos.y})">
+          <rect 
+            x="${-boxW / 2}" 
+            y="${-boxH / 2}" 
+            width="${boxW}" 
+            height="${boxH}" 
+            rx="${rx}" 
+            fill="${fill}" 
+            stroke="rgba(255, 255, 255, 0.45)" 
+            stroke-width="1.5" 
+            class="node-rect"
+            filter="${isRoot ? 'url(#glow)' : 'none'}" />
+          <text 
+            text-anchor="middle" 
+            dy="4" 
+            fill="#ffffff" 
+            font-size="${isRoot ? 12 : 11}" 
+            font-weight="700" 
+            font-family="'Inter', sans-serif">
+            ${node.label.length > 20 ? node.label.slice(0, 18) + '...' : node.label}
+          </text>
+        </g>
+      `;
+    });
+
+    svgContent += `</g></svg>`;
+
+    viewport.innerHTML = svgContent;
+    this.selectConceptNode(rootNode.id);
+  },
+
+  selectConceptNode(nodeId) {
+    const data = this.state.currentConceptMap.data;
+    if (!data || !data.nodes) return;
+
+    const node = data.nodes.find(n => n.id === nodeId);
+    if (!node) return;
+
+    this.state.currentConceptMap.selectedNodeId = nodeId;
+
+    document.querySelectorAll('.concept-node-group').forEach(el => el.classList.remove('active'));
+    const activeEl = document.getElementById(`svg-node-${nodeId}`);
+    if (activeEl) activeEl.classList.add('active');
+
+    const relatedEdges = (data.edges || []).filter(e => e.source === nodeId || e.target === nodeId);
+    const relatedNames = relatedEdges.map(e => {
+      const otherId = e.source === nodeId ? e.target : e.source;
+      const otherNode = data.nodes.find(n => n.id === otherId);
+      const direction = e.source === nodeId ? '→' : '←';
+      return otherNode ? `${direction} <strong>${e.label || 'connected to'}</strong>: <em>${otherNode.label}</em>` : '';
+    }).filter(Boolean);
+
+    const doc = this.state.documents.find(d => d.filename === node.source_doc) || this.state.documents[0];
+    const docId = doc ? doc.id : '';
+
+    const detailsBox = document.getElementById('concept-node-details');
+    if (detailsBox) {
+      detailsBox.style.display = 'block';
+      detailsBox.innerHTML = `
+        <div class="node-details-card">
+          <div class="node-details-header">
+            <span style="font-size:14px; font-weight:800; color:var(--text-primary);">💡 ${node.label}</span>
+            <span class="node-category-badge ${node.category || 'concept'}">${(node.category || 'Concept').toUpperCase()}</span>
+          </div>
+
+          <div style="font-size:12px; line-height:1.6; color:var(--text-secondary); margin-top:2px;">
+            ${node.explanation}
+          </div>
+
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px; padding-top:6px; border-top:1px solid var(--border-color); font-size:11px;">
+            <div style="color:var(--text-muted); font-weight:600;">
+              📄 ${node.source_doc || 'Document'} • Page ${node.source_page || 1}
+            </div>
+            ${docId ? `
+              <button class="btn-secondary" style="font-size:11px; padding:3px 8px;" onclick="PDFViewer.openDocumentPage('${docId}', '${node.source_doc}', ${node.source_page || 1})">
+                🔍 Open Page ${node.source_page || 1}
+              </button>
+            ` : ''}
+          </div>
+
+          ${relatedNames.length > 0 ? `
+            <div style="margin-top:4px; font-size:11px; color:var(--text-muted);">
+              <strong>Key Relations:</strong>
+              <div style="display:flex; flex-direction:column; gap:2px; margin-top:2px; font-size:11px;">
+                ${relatedNames.slice(0, 4).map(r => `<div>${r}</div>`).join('')}
+              </div>
+            </div>
+          ` : ''}
+        </div>
+      `;
+    }
+  },
+
+  zoomConceptMap(factor) {
+    const svg = document.getElementById('concept-map-svg-el');
+    if (!svg) return;
+    this.state.currentConceptMap.zoom = Math.min(2.5, Math.max(0.4, this.state.currentConceptMap.zoom * factor));
+    svg.style.transform = `scale(${this.state.currentConceptMap.zoom})`;
+  },
+
+  resetConceptMapZoom() {
+    const svg = document.getElementById('concept-map-svg-el');
+    if (!svg) return;
+    this.state.currentConceptMap.zoom = 1.0;
+    svg.style.transform = `scale(1.0)`;
+  },
+
+  copyConceptMap(btn) {
+    const data = this.state.currentConceptMap.data;
+    if (!data || !data.nodes || data.nodes.length === 0) {
+      alert('Please generate a concept map first.');
+      return;
+    }
+
+    let md = `# 🧠 Concept Map: ${data.main_topic || 'Overview'}\n\n`;
+    if (data.summary) {
+      md += `${data.summary}\n\n`;
+    }
+    md += `## 📚 Key Concepts:\n`;
+    data.nodes.forEach(n => {
+      md += `- **${n.label}** [${(n.category || 'concept').toUpperCase()}]: ${n.explanation} \`[${n.source_doc || 'Document'}, p.${n.source_page || 1}]\`\n`;
+    });
+
+    if (data.edges && data.edges.length > 0) {
+      md += `\n## 🔗 Semantic Relationships:\n`;
+      data.edges.forEach(e => {
+        const srcNode = data.nodes.find(n => n.id === e.source);
+        const tgtNode = data.nodes.find(n => n.id === e.target);
+        if (srcNode && tgtNode) {
+          md += `- **${srcNode.label}** --[${e.label || 'relates to'}]--> **${tgtNode.label}**\n`;
+        }
+      });
+    }
+
+    Chat.copyToClipboard(md, btn);
+  },
+
+  downloadConceptMap() {
+    const data = this.state.currentConceptMap.data;
+    if (!data || !data.nodes || data.nodes.length === 0) {
+      alert('Please generate a concept map first.');
+      return;
+    }
+
+    const jsonStr = JSON.stringify(data, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `DocuMind_Concept_Map_${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  },
+
+  exportConceptMapImage() {
+    const svg = document.getElementById('concept-map-svg-el');
+    if (!svg) return;
+
+    try {
+      const serializer = new XMLSerializer();
+      let source = serializer.serializeToString(svg);
+
+      if (!source.match(/^<svg[^>]+xmlns="http\:\/\/www\.w3\.org\/2000\/svg"/)) {
+        source = source.replace(/^<svg/, '<svg xmlns="http://www.w3.org/2000/svg"');
+      }
+
+      const svgBlob = new Blob([source], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(svgBlob);
+
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 1360;
+        canvas.height = 880;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const pngUrl = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = pngUrl;
+            a.download = `DocuMind_Concept_Map_${new Date().toISOString().slice(0, 10)}.png`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(pngUrl);
+          }
+        }, 'image/png');
+        URL.revokeObjectURL(url);
+      };
+      img.src = url;
+    } catch (e) {
+      const svgBlob = new Blob([new XMLSerializer().serializeToString(svg)], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(svgBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'DocuMind_Concept_Map.svg';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     }
   },
 

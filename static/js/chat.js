@@ -21,6 +21,12 @@ const Chat = {
       return `<pre><code class="language-${lang}">${code.trim()}</code></pre>`;
     });
 
+    // Citations `[DocName.pdf, p.1]` or [DocName.pdf, p.1]
+    html = html.replace(/`?\[([a-zA-Z0-9_\-\.\s]+\.(?:pdf|docx|txt|md)),\s*p\.(\d+)\]`?/gi, (match, fname, page) => {
+      const cleanFname = fname.trim();
+      return `<span class="summary-citation-badge" onclick="PDFViewer.openDocumentByNameAndPage('${cleanFname}', ${page})" title="View ${cleanFname} Page ${page} in PDF Reader">📄 ${cleanFname} p.${page}</span>`;
+    });
+
     // Inline code `code`
     html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
 

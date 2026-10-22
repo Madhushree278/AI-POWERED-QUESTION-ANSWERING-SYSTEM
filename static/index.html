@@ -181,6 +181,20 @@
 
           <!-- Quick Feature Launchers -->
           <div class="dashboard-quick-actions">
+            <div class="quick-action-card" onclick="App.openInspectorTab('concept-map')">
+              <div class="quick-action-icon">🧠</div>
+              <div>
+                <div class="quick-action-title">Concept Map Generator</div>
+                <div class="quick-action-desc">Interactive visual mind-map of interconnected concepts</div>
+              </div>
+            </div>
+            <div class="quick-action-card" onclick="App.openInspectorTab('summarize')">
+              <div class="quick-action-icon">📝</div>
+              <div>
+                <div class="quick-action-title">Smart Summarizer</div>
+                <div class="quick-action-desc">Short, detailed, bullet-point & academic exam notes</div>
+              </div>
+            </div>
             <div class="quick-action-card" onclick="App.openInspectorTab('quiz')">
               <div class="quick-action-icon">🎯</div>
               <div>
@@ -193,13 +207,6 @@
               <div>
                 <div class="quick-action-title">Study Flashcards</div>
                 <div class="quick-action-desc">Master key terms with 3D flip cards</div>
-              </div>
-            </div>
-            <div class="quick-action-card" onclick="App.openInspectorTab('summarize')">
-              <div class="quick-action-icon">📝</div>
-              <div>
-                <div class="quick-action-title">Book Summarizer</div>
-                <div class="quick-action-desc">Chapter-by-chapter and key point syntheses</div>
               </div>
             </div>
           </div>
@@ -254,14 +261,17 @@
         <button class="inspector-tab-btn active" data-inspector-tab="sources">
           <span>🔍</span> Sources
         </button>
+        <button class="inspector-tab-btn" data-inspector-tab="concept-map">
+          <span>🧠</span> Concept Map
+        </button>
+        <button class="inspector-tab-btn" data-inspector-tab="summarize">
+          <span>📝</span> Smart Summarizer
+        </button>
         <button class="inspector-tab-btn" data-inspector-tab="quiz">
           <span>🎯</span> Quiz
         </button>
         <button class="inspector-tab-btn" data-inspector-tab="flashcards">
           <span>🎴</span> Flashcards
-        </button>
-        <button class="inspector-tab-btn" data-inspector-tab="summarize">
-          <span>📝</span> Summarize
         </button>
         <button class="inspector-tab-btn" data-inspector-tab="pdf">
           <span>📄</span> Viewer
@@ -366,42 +376,97 @@
           </div>
         </div>
 
-        <!-- Tab 4: Book / Document Summarizer -->
-        <div class="inspector-pane" id="inspector-pane-summarize">
-          <div class="summarizer-form" style="display:flex; flex-direction:column; gap:12px;">
+        <!-- Tab: AI Concept Map Generator -->
+        <div class="inspector-pane" id="inspector-pane-concept-map">
+          <div class="concept-map-form" style="display:flex; flex-direction:column; gap:12px;">
             <div class="form-group">
-              <label class="form-label">Target Document</label>
-              <select class="form-select" id="summarizer-doc-select" onchange="App.onSummarizerDocChange()">
+              <label class="form-label">Target Document(s)</label>
+              <select class="form-select" id="concept-map-doc-select">
                 <!-- Populated via JS -->
               </select>
             </div>
 
             <div class="form-group">
-              <label class="form-label">Scope</label>
+              <label class="form-label">Focus Topic (Optional)</label>
+              <input type="text" class="form-input" id="concept-map-topic-input" placeholder="e.g. Deep Learning, Cloud Architecture (or auto-detect)">
+            </div>
+
+            <button class="btn-action-primary" id="btn-generate-concept-map" onclick="App.handleGenerateConceptMap()">
+              <span>🧠</span> Generate Concept Map
+            </button>
+
+            <!-- Concept Map Interactive Display -->
+            <div id="concept-map-container" style="display:flex; flex-direction:column; gap:10px; margin-top:4px;">
+              <div class="concept-map-toolbar" id="concept-map-toolbar" style="display:none; justify-content:space-between; align-items:center; background:var(--bg-surface); padding:6px 10px; border-radius:var(--radius-sm); border:1px solid var(--border-color);">
+                <div style="font-size:11px; font-weight:700; color:var(--accent-primary);" id="concept-map-title-badge">Concept Graph</div>
+                <div style="display:flex; gap:6px;">
+                  <button class="btn-icon-xs" onclick="App.zoomConceptMap(1.2)" title="Zoom In">🔍 +</button>
+                  <button class="btn-icon-xs" onclick="App.zoomConceptMap(0.8)" title="Zoom Out">🔍 −</button>
+                  <button class="btn-icon-xs" onclick="App.resetConceptMapZoom()" title="Reset View">⟲ Reset</button>
+                  <button class="btn-icon-xs" onclick="App.copyConceptMap(this)" title="Copy Concept Map as Markdown">📋 Copy</button>
+                  <button class="btn-icon-xs" onclick="App.downloadConceptMap()" title="Download Concept Map as JSON">⬇️ Export</button>
+                  <button class="btn-icon-xs" onclick="App.exportConceptMapImage()" title="Export Concept Map as Image">📷 Image</button>
+                </div>
+              </div>
+
+              <div class="concept-map-viewport" id="concept-map-viewport">
+                <div style="text-align:center; padding:30px 10px; color:var(--text-muted); font-size:12px;">
+                  Select a document and click "Generate Concept Map" to view an interconnected visual mind-map generated from your document content.
+                </div>
+              </div>
+
+              <!-- Interactive Node Details Box -->
+              <div id="concept-node-details" style="display:none; background:var(--bg-surface); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:12px; font-size:12px;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab: AI-Powered Smart Summarizer -->
+        <div class="inspector-pane" id="inspector-pane-summarize">
+          <div class="summarizer-form" style="display:flex; flex-direction:column; gap:12px;">
+            <div class="form-group">
+              <label class="form-label">Target Document(s)</label>
+              <select class="form-select" id="summarizer-doc-select" onchange="App.onSummarizerDocChange()">
+                <!-- Populated via JS -->
+              </select>
+            </div>
+
+            <div class="form-group" id="summarizer-chapter-group">
+              <label class="form-label">Chapter Scope</label>
               <select class="form-select" id="summarizer-chapter-select">
                 <option value="All Chapters">Entire Document</option>
               </select>
             </div>
 
-            <div class="form-group">
-              <label class="form-label">Summary Format</label>
-              <select class="form-select" id="summarizer-type-select">
-                <option value="short">Short Executive Summary</option>
-                <option value="detailed">Detailed Comprehensive Summary</option>
-                <option value="key_points">Core Key Points & Takeaways</option>
-                <option value="concepts">Important Conceptual Frameworks</option>
-                <option value="definitions">Important Definitions & Terms</option>
-                <option value="chapter_wise">Chapter-by-Chapter Breakdown</option>
-              </select>
+            <div style="display:flex; gap:10px;">
+              <div class="form-group" style="flex:1;">
+                <label class="form-label">Summary Mode</label>
+                <select class="form-select" id="summarizer-mode-select">
+                  <option value="detailed" selected>Detailed Summary</option>
+                  <option value="short">Short Summary</option>
+                  <option value="bullet_points">Bullet-Point Summary</option>
+                  <option value="exam_notes">Academic Exam Notes</option>
+                </select>
+              </div>
+
+              <div class="form-group" style="flex:1;">
+                <label class="form-label">Length / Depth</label>
+                <select class="form-select" id="summarizer-length-select">
+                  <option value="detailed" selected>Comprehensive / In-depth</option>
+                  <option value="5_points">5 Bullet Points / Key Takeaways</option>
+                  <option value="10_points">10 Bullet Points / Standard</option>
+                </select>
+              </div>
             </div>
 
-            <button class="btn-action-primary" onclick="App.handleGenerateSummary()">
-              <span>📝</span> Generate Summary
+            <button class="btn-action-primary" id="btn-generate-summary" onclick="App.handleGenerateSmartSummary()">
+              <span>📝</span> Generate Smart Summary
             </button>
 
-            <div class="summary-output-card" id="summarizer-output-card" style="background:var(--bg-surface); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:14px; line-height:1.6; font-size:13px; max-height:360px; overflow-y:auto;">
-              <div style="color:var(--text-muted); font-size:12px; text-align:center; padding: 20px 0;">
-                Select format and click "Generate Summary" to view structured document summaries.
+            <!-- Summarizer Output Card -->
+            <div class="summary-output-card" id="summarizer-output-card" style="background:var(--bg-surface); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:14px; line-height:1.6; font-size:13px; max-height:420px; overflow-y:auto;">
+              <div style="color:var(--text-muted); font-size:12px; text-align:center; padding: 25px 0;">
+                Select summary mode & length, then click "Generate Smart Summary" to extract topics, definitions, key points, and conclusions.
               </div>
             </div>
           </div>

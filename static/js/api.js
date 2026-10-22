@@ -61,12 +61,29 @@ const API = {
     });
   },
 
-  // Summarization
+  // Summarization (Legacy & Smart)
   async summarizeDocument(docId, payload) {
     return await this.request(`/api/documents/${docId}/summarize`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
+    });
+  },
+
+  async generateSmartSummary(payload) {
+    return await this.request('/api/summarizer/smart', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+  },
+
+  // AI Concept Map
+  async generateConceptMap(docIds, topic = null) {
+    return await this.request('/api/concept-map/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ doc_ids: docIds, topic: topic || null })
     });
   },
 

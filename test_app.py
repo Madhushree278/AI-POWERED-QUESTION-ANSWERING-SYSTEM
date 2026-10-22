@@ -5,6 +5,7 @@ from services.document_processor import DocumentProcessor
 from services.vector_store import vector_store_service
 from services.rag_engine import rag_engine
 from services.summarizer import summarizer_service
+from services.concept_map_service import concept_map_service
 from database.database import init_db, list_documents, list_conversations
 
 client = TestClient(app)
@@ -143,6 +144,86 @@ def test_api_upload_and_chat_flow():
     del_res = client.delete(f"/api/documents/{doc_id}")
     assert del_res.status_code == 200
 
+def test_concept_map_generation():
+    # Test service level
+    res = concept_map_service.generate_concept_map(["test_doc_ai"])
+    assert "nodes" in res
+    assert "edges" in res
+    assert len(res["nodes"]) >= 3
+    assert len(res["edges"]) >= 2
+    assert "main_topic" in res
+    
+    # Check node structure
+    root_node = res["nodes"][0]
+    assert "id" in root_node
+    assert "label" in root_node
+    assert "explanation" in root_node
+    assert "source_doc" in root_node
+    assert "source_page" in root_node
+
+    # Test API endpoint
+    api_res = client.post("/api/concept-map/generate", json={"doc_ids": ["test_doc_ai"]})
+    assert api_res.status_code == 200
+    api_data = api_res.json()
+    assert len(api_data["nodes"]) >= 3
+    assert len(api_data["edges"]) >= 2
+
+    # Test error handling on empty doc_ids
+    err_res = client.post("/api/concept-map/generate", json={"doc_ids": []})
+    assert err_res.status_code == 400
+
+    # Test on real uploaded document if exists
+    real_docs = list_documents()
+    if real_docs:
+        real_id = real_docs[0]["id"]
+        real_res = concept_map_service.generate_concept_map([real_id])
+        assert len(real_res["nodes"]) >= 3
+        assert len(real_res["edges"]) >= 2
+
+def test_smart_summarizer_modes_and_lengths():
+    # Test all 4 modes
+    for mode in ["short", "detailed", "bullet_points", "exam_notes"]:
+        for length in ["5_points", "10_points", "detailed"]:
+            res = summarizer_service.generate_smart_summary(
+                doc_ids=["test_doc_ai"],
+                mode=mode,
+                length=length
+            )
+            assert len(res["summary"]) > 40
+            assert res["mode"] == mode
+            assert "AI_and_ML_Handbook" in res["summary"] or "Handbook" in res["summary"] or "Summary" in res["summary"]
+            # Verify citations are present
+            assert ", p." in res["summary"]
+
+    # Test API endpoint with multi-doc / single-doc
+    api_res = client.post("/api/summarizer/smart", json={
+        "doc_ids": ["test_doc_ai"],
+        "mode": "exam_notes",
+        "length": "detailed"
+    })
+    assert api_res.status_code == 200
+    api_data = api_res.json()
+    assert "summary" in api_data
+    assert api_data["mode"] == "exam_notes"
+    assert len(api_data["summary"]) > 50
+
+    # Test API error handling on empty doc_ids
+    err_res = client.post("/api/summarizer/smart", json={
+        "doc_ids": [],
+        "mode": "short",
+        "length": "detailed"
+    })
+    assert err_res.status_code == 400
+
+    # Test on real uploaded document if available
+    real_docs = list_documents()
+    if real_docs:
+        real_id = real_docs[0]["id"]
+        for mode in ["short", "detailed", "bullet_points", "exam_notes"]:
+            real_res = summarizer_service.generate_smart_summary([real_id], mode=mode, length="5_points")
+            assert len(real_res["summary"]) > 50
+            assert ", p." in real_res["summary"]
+
 if __name__ == "__main__":
     print("Running tests...")
     test_startup_and_stats()
@@ -161,6 +242,10 @@ if __name__ == "__main__":
     print("[OK] test_followup_question_query_rewriting passed")
     test_summarization_service()
     print("[OK] test_summarization_service passed")
+    test_concept_map_generation()
+    print("[OK] test_concept_map_generation passed")
+    test_smart_summarizer_modes_and_lengths()
+    print("[OK] test_smart_summarizer_modes_and_lengths passed")
     test_api_upload_and_chat_flow()
     print("[OK] test_api_upload_and_chat_flow passed")
     print("\nALL TESTS PASSED SUCCESSFULLY!")
